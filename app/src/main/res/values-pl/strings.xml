@@ -79,7 +79,7 @@
     <string name="executor_flush_threshold">Próg \"oczyszczania\" jednostek wykonywania</string>
     <string name="executor_flush_threshold_desc">Kontroluje jak często praca jest \"oczyszczana\" do GPU</string>
     <string name="use_direct_memory_import">Użyj bezpośrednie importowanie pamięci</string>
-    <string name="use_direct_memory_import_desc">Może zmienić wydajność i stabilność w niektórych grach\n</b>UWAGA:</b> Opcja ta działa tylko na własnościowych sterownikach Adreno</string>
+    <string name="use_direct_memory_import_desc">Może zmienić wydajność i stabilność w niektórych grach\n<b>UWAGA:</b> Opcja ta działa tylko na własnościowych sterownikach Adreno</string>
     <string name="force_max_gpu_clocks">Wymuś maksymalną prędkość zegara GPU</string>
     <string name="force_max_gpu_clocks_desc">Wymusza GPU do działania przy maksymalnej możliwej prędkości zegara (Może spowodować nadmierne nagrzewanie i zużycie energii)</string>
     <string name="force_max_gpu_clocks_desc_unsupported">Twoje urządzenie nie wspiera wymuszania maksymalnej prędkości zegara GPU</string>
