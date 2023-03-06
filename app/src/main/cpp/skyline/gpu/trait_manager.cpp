@@ -58,7 +58,7 @@ namespace skyline::gpu {
                 EXT_SET("VK_KHR_uniform_buffer_standard_layout", supportsUniformBufferStandardLayout);
                 EXT_SET("VK_EXT_primitive_topology_list_restart", hasPrimitiveTopologyListRestartExt);
                 EXT_SET("VK_EXT_transform_feedback", hasTransformFeedbackExt);
-                EXT_SET("VK_EXT_extended_dynamic_state", hasExtendedDynamicStateExt);
+                EXT_SET_COND("VK_EXT_extended_dynamic_state", hasExtendedDynamicStateExt, !quirks.brokenDynamicStateVertexBindings);
                 EXT_SET("VK_EXT_robustness2", hasRobustness2Ext);
             }
 
@@ -81,6 +81,7 @@ namespace skyline::gpu {
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderInt16, supportsInt16)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderInt64, supportsInt64)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderStorageImageReadWithoutFormat, supportsImageReadWithoutFormat)
+        FEAT_SET(vk::PhysicalDeviceFeatures2, features.robustBufferAccess, std::ignore)
 
         if (hasUint8IndicesExt)
             FEAT_SET(vk::PhysicalDeviceIndexTypeUint8FeaturesEXT, indexTypeUint8, supportsUint8Indices)
@@ -94,7 +95,6 @@ namespace skyline::gpu {
 
         if (hasRobustness2Ext) {
             FEAT_SET(vk::PhysicalDeviceRobustness2FeaturesEXT, nullDescriptor, supportsNullDescriptor)
-            FEAT_SET(vk::PhysicalDeviceFeatures2, features.robustBufferAccess, std::ignore)
             FEAT_SET(vk::PhysicalDeviceRobustness2FeaturesEXT, robustBufferAccess2, std::ignore)
             FEAT_SET(vk::PhysicalDeviceRobustness2FeaturesEXT, robustImageAccess2, std::ignore)
         } else {
@@ -163,12 +163,11 @@ namespace skyline::gpu {
         }
 
         if (hasTransformFeedbackExt) {
-            bool hasTransformFeedbackFeat{}, hasGeometryStreamsStreamsFeat{};
+            bool hasTransformFeedbackFeat{};
             FEAT_SET(vk::PhysicalDeviceTransformFeedbackFeaturesEXT, transformFeedback, hasTransformFeedbackFeat)
-            FEAT_SET(vk::PhysicalDeviceTransformFeedbackFeaturesEXT, geometryStreams, hasGeometryStreamsStreamsFeat)
 
             auto transformFeedbackProperties{deviceProperties2.get<vk::PhysicalDeviceTransformFeedbackPropertiesEXT>()};
-            if (hasTransformFeedbackFeat && hasGeometryStreamsStreamsFeat && transformFeedbackProperties.transformFeedbackDraw)
+            if (hasTransformFeedbackFeat && transformFeedbackProperties.transformFeedbackDraw)
                 supportsTransformFeedback = true;
         } else {
             enabledFeatures2.unlink<vk::PhysicalDeviceTransformFeedbackFeaturesEXT>();
@@ -261,8 +260,11 @@ namespace skyline::gpu {
             }
 
             case vk::DriverId::eArmProprietary: {
+                if (deviceProperties.driverVersion < VK_MAKE_VERSION(42, 0, 0))
+                    brokenDynamicStateVertexBindings = true;
+
+                vkImageMutableFormatCostly = true; // Disables AFBC in some cases
                 maxGlobalPriority = vk::QueueGlobalPriorityEXT::eHigh;
-                brokenComputeShaders = true;
                 break;
             }
 

@@ -2,21 +2,11 @@
 // Copyright © 2021 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include "command_nodes.h"
+#include "gpu/texture/texture.h"
+#include <vulkan/vulkan_enums.hpp>
 
 namespace skyline::gpu::interconnect::node {
-    RenderPassNode::RenderPassNode(vk::Rect2D renderArea) : subpassDependencies(
-        {
-            // We assume all past commands have been executed when this RP starts
-            vk::SubpassDependency{
-                .srcSubpass = VK_SUBPASS_EXTERNAL,
-                .dstSubpass = 0,
-                .srcStageMask = vk::PipelineStageFlagBits::eAllGraphics,
-                .dstStageMask = vk::PipelineStageFlagBits::eAllGraphics,
-                .srcAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
-                .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
-            }
-        }
-    ), renderArea(renderArea) {}
+    RenderPassNode::RenderPassNode(vk::Rect2D renderArea) : renderArea{renderArea} {}
 
     u32 RenderPassNode::AddAttachment(TextureView *view, GPU &gpu) {
         auto vkView{view->GetView()};
@@ -42,6 +32,22 @@ namespace skyline::gpu::interconnect::node {
                 .finalLayout = view->texture->layout,
                 .flags = vk::AttachmentDescriptionFlagBits::eMayAlias
             });
+
+            if (auto usage{view->texture->GetLastRenderPassUsage()}; usage != texture::RenderPassUsage::None) {
+                vk::PipelineStageFlags attachmentDstStageMask{};
+                if (view->format->vkAspect & vk::ImageAspectFlagBits::eColor)
+                    attachmentDstStageMask |= vk::PipelineStageFlagBits::eColorAttachmentOutput;
+                else if (view->format->vkAspect & (vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil))
+                    attachmentDstStageMask |= vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests;
+
+                dependencyDstStageMask |= attachmentDstStageMask;
+
+                if (usage == texture::RenderPassUsage::RenderTarget)
+                    dependencySrcStageMask |= attachmentDstStageMask;
+                else if (usage == texture::RenderPassUsage::Sampled)
+                    dependencySrcStageMask |= view->texture->GetReadStageMask();
+            }
+
             return static_cast<u32>(attachments.size() - 1);
         } else {
             // If we've got a match from a previous subpass, we need to preserve the attachment till the current subpass
@@ -116,7 +122,7 @@ namespace skyline::gpu::interconnect::node {
         }
     }
 
-    void RenderPassNode::AddSubpass(span<TextureView *> inputAttachments, span<TextureView *> colorAttachments, TextureView *depthStencilAttachment, GPU& gpu) {
+    void RenderPassNode::AddSubpass(span<TextureView *> inputAttachments, span<TextureView *> colorAttachments, TextureView *depthStencilAttachment, GPU &gpu) {
         attachmentReferences.reserve(attachmentReferences.size() + inputAttachments.size() + colorAttachments.size() + (depthStencilAttachment ? 1 : 0));
 
         auto inputAttachmentsOffset{attachmentReferences.size() * sizeof(vk::AttachmentReference)};
@@ -160,6 +166,11 @@ namespace skyline::gpu::interconnect::node {
             .pColorAttachments = reinterpret_cast<vk::AttachmentReference *>(colorAttachmentsOffset),
             .pDepthStencilAttachment = reinterpret_cast<vk::AttachmentReference *>(depthStencilAttachment ? depthStencilAttachmentOffset : NoDepthStencil),
         });
+    }
+
+    void RenderPassNode::UpdateDependency(vk::PipelineStageFlags srcStageMask, vk::PipelineStageFlags dstStageMask) {
+        dependencySrcStageMask |= srcStageMask;
+        dependencyDstStageMask |= dstStageMask;
     }
 
     bool RenderPassNode::ClearColorAttachment(u32 colorAttachment, const vk::ClearColorValue &value, GPU& gpu) {
@@ -223,6 +234,13 @@ namespace skyline::gpu::interconnect::node {
             subpassDescription.preserveAttachmentCount = static_cast<u32>(preserveAttachmentIt->size());
             subpassDescription.pPreserveAttachments = preserveAttachmentIt->data();
             preserveAttachmentIt++;
+        }
+
+        if (dependencyDstStageMask && dependencySrcStageMask) {
+            commandBuffer.pipelineBarrier(dependencySrcStageMask, dependencyDstStageMask, {}, {vk::MemoryBarrier{
+                .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
+                .dstAccessMask = vk::AccessFlagBits::eMemoryWrite | vk::AccessFlagBits::eMemoryRead,
+            }}, {}, {});
         }
 
         auto renderPass{gpu.renderPassCache.GetRenderPass(vk::RenderPassCreateInfo{

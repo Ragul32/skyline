@@ -182,18 +182,22 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 ctx.executor.AttachTexture(&*view);
 
                 bool viewHasDepth{view->range.aspectMask & vk::ImageAspectFlagBits::eDepth}, viewHasStencil{view->range.aspectMask & vk::ImageAspectFlagBits::eStencil};
+                vk::ImageAspectFlags clearAspectMask{(clearSurface.zEnable ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlags{}) |
+                                                     (clearSurface.stencilEnable ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlags{})};
+                clearAspectMask &= view->range.aspectMask;
+
                 vk::ClearDepthStencilValue clearValue{
                     .depth = clearEngineRegisters.depthClearValue,
                     .stencil = clearEngineRegisters.stencilClearValue
                 };
 
-                if (!viewHasDepth && !viewHasStencil) {
+                if (!clearAspectMask) {
                     Logger::Warn("Depth stencil RT used in clear lacks depth or stencil aspects"); // TODO: Drop this check after texman rework
                     return;
                 }
 
-                if (needsAttachmentClearCmd(view) || (!clearSurface.stencilEnable && viewHasStencil) || (!clearSurface.zEnable && viewHasDepth)) { // Subpass clears write to all aspects of the texture, so we can't use them when only one component is enabled
-                    clearAttachments.push_back({.aspectMask = view->range.aspectMask, .clearValue = clearValue});
+                if (needsAttachmentClearCmd(view) || (clearAspectMask != view->range.aspectMask)) { // Subpass clears write to all aspects of the texture, so we can't use them when only one component is enabled
+                    clearAttachments.push_back({.aspectMask = clearAspectMask, .clearValue = clearValue});
                     depthStencilView = view;
                 } else {
                     ctx.executor.AddClearDepthStencilSubpass(&*view, clearValue);
@@ -212,10 +216,11 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
     void Maxwell3D::Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance) {
         StateUpdateBuilder builder{*ctx.executor.allocator};
+        vk::PipelineStageFlags srcStageMask{}, dstStageMask{};
 
         Pipeline *oldPipeline{activeState.GetPipeline()};
         samplers.Update(ctx, samplerBinding.value == engine::SamplerBinding::Value::ViaHeaderBinding);
-        activeState.Update(ctx, textures, constantBuffers.boundConstantBuffers, builder, indexed, topology, first, count);
+        activeState.Update(ctx, textures, constantBuffers.boundConstantBuffers, builder, indexed, topology, first, count, srcStageMask, dstStageMask);
         if (directState.inputAssembly.NeedsQuadConversion()) {
             count = conversion::quads::GetIndexCount(count);
             first = 0;
@@ -231,17 +236,18 @@ namespace skyline::gpu::interconnect::maxwell3d {
         Pipeline *pipeline{activeState.GetPipeline()};
         activeDescriptorSetSampledImages.resize(pipeline->GetTotalSampledImageCount());
 
+
         auto *descUpdateInfo{[&]() -> DescriptorUpdateInfo * {
             if (((oldPipeline == pipeline) || (oldPipeline && oldPipeline->CheckBindingMatch(pipeline))) && constantBuffers.quickBindEnabled) {
                 // If bindings between the old and new pipelines are the same we can reuse the descriptor sets given that quick bind is enabled (meaning that no buffer updates or calls to non-graphics engines have occurred that could invalidate them)
                 if (constantBuffers.quickBind)
                     // If only a single constant buffer has been rebound between draws we can perform a partial descriptor update
-                    return pipeline->SyncDescriptorsQuickBind(ctx, constantBuffers.boundConstantBuffers, samplers, textures, *constantBuffers.quickBind, activeDescriptorSetSampledImages);
+                    return pipeline->SyncDescriptorsQuickBind(ctx, constantBuffers.boundConstantBuffers, samplers, textures, *constantBuffers.quickBind, activeDescriptorSetSampledImages, srcStageMask, dstStageMask);
                 else
                     return nullptr;
             } else {
                 // If bindings have changed or quick bind is disabled, perform a full descriptor update
-                return pipeline->SyncDescriptors(ctx, constantBuffers.boundConstantBuffers, samplers, textures, activeDescriptorSetSampledImages);
+                return pipeline->SyncDescriptors(ctx, constantBuffers.boundConstantBuffers, samplers, textures, activeDescriptorSetSampledImages, srcStageMask, dstStageMask);
             }
         }()};
 
@@ -319,7 +325,6 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
             if (drawParams->transformFeedbackEnable)
                 commandBuffer.endTransformFeedbackEXT(0, {}, {});
-        }, scissor, activeDescriptorSetSampledImages, {}, activeState.GetColorAttachments(), activeState.GetDepthAttachment(), !ctx.gpu.traits.quirks.relaxedRenderPassCompatibility);
-
+        }, scissor, activeDescriptorSetSampledImages, {}, activeState.GetColorAttachments(), activeState.GetDepthAttachment(), !ctx.gpu.traits.quirks.relaxedRenderPassCompatibility, srcStageMask, dstStageMask);
     }
 }

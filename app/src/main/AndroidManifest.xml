@@ -12,6 +12,7 @@
 
     <application
         android:name=".SkylineApplication"
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="true"
         android:extractNativeLibs="true"
         android:fullBackupContent="@xml/backup_descriptor"
@@ -19,6 +20,7 @@
         android:icon="@drawable/logo_skyline"
         android:isGame="true"
         android:label="${appLabel}"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning,UnusedAttribute">
@@ -36,7 +38,7 @@
         </activity>
 
         <activity
-            android:name=".SettingsActivity"
+            android:name=".settings.SettingsActivity"
             android:exported="true"
             android:label="@string/settings"
             android:launchMode="singleTop"
@@ -46,13 +48,13 @@
         <activity
             android:name=".input.ControllerActivity"
             android:exported="true"
-            android:parentActivityName=".SettingsActivity">
+            android:parentActivityName=".settings.SettingsActivity">
         </activity>
 
         <activity
             android:name=".preference.GpuDriverActivity"
             android:exported="true"
-            android:parentActivityName=".SettingsActivity">
+            android:parentActivityName=".settings.SettingsActivity">
         </activity>
 
         <activity
@@ -114,6 +116,15 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
 
         <meta-data
             android:name="com.android.graphics.injectLayers.enable"

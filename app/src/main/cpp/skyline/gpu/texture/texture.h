@@ -389,6 +389,7 @@ namespace skyline::gpu {
             CpuDirty, //!< The CPU mappings have been modified but the GPU texture is not up to date
             GpuDirty, //!< The GPU texture has been modified but the CPU mappings have not been updated
         } dirtyState{DirtyState::CpuDirty}; //!< The state of the CPU mappings with respect to the GPU texture
+        bool memoryFreed{}; //!< If the guest backing memory has been freed
         std::recursive_mutex stateMutex; //!< Synchronizes access to the dirty state
 
         /**
@@ -410,6 +411,9 @@ namespace skyline::gpu {
 
         u32 lastRenderPassIndex{}; //!< The index of the last render pass that used this texture
         texture::RenderPassUsage lastRenderPassUsage{texture::RenderPassUsage::None}; //!< The type of usage in the last render pass
+        bool everUsedAsRt{}; //!< If this texture has ever been used as a rendertarget
+        vk::PipelineStageFlags pendingStageMask{}; //!< List of pipeline stages that are yet to be flushed for reads since the last time this texture was used an an RT
+        vk::PipelineStageFlags readStageMask{}; //!< Set of pipeline stages that this texture has been read in since it was last used as an RT
 
         friend TextureManager;
         friend TextureView;
@@ -441,6 +445,12 @@ namespace skyline::gpu {
          * @note The host buffer must be contain the entire image
          */
         void CopyToGuest(u8 *hostBuffer);
+
+        /**
+         * @brief Frees the guest side copy of the texture
+         * @note `stateMutex` must be locked when calling this function
+         */
+        void FreeGuest();
 
         /**
          * @return A vector of all the buffer image copies that need to be done for every aspect of every level of every layer of the texture
@@ -606,5 +616,20 @@ namespace skyline::gpu {
          * @brief Updates renderpass usage tracking information
          */
         void UpdateRenderPassUsage(u32 renderPassIndex, texture::RenderPassUsage renderPassUsage);
+
+        /**
+         * @return The last usage of the texture
+         */
+        texture::RenderPassUsage GetLastRenderPassUsage();
+
+        /**
+         * @return The set of stages this texture has been read in since it was last used as an RT
+         */
+        vk::PipelineStageFlags GetReadStageMask();
+
+        /**
+         * @brief Populates the input src and dst stage masks with appropriate read barrier parameters for the current texture state
+         */
+        void PopulateReadBarrier(vk::PipelineStageFlagBits dstStage, vk::PipelineStageFlags &srcStageMask, vk::PipelineStageFlags &dstStageMask);
     };
 }

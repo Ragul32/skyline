@@ -80,6 +80,8 @@ namespace skyline::gpu {
         } backingImmutability{}; //!< Describes how the buffer backing should be accessed by the current context
         RecursiveSpinLock stateMutex; //!< Synchronizes access to the dirty state and backing immutability
 
+        bool currentExecutionGpuDirty{}; //!< If the buffer is GPU dirty within the current execution
+
         static constexpr u32 InitialSequenceNumber{1}; //!< Sequence number that all buffers start off with
         static constexpr u32 FrequentlySyncedThreshold{6}; //!< Threshold for the sequence number after which the buffer is considered elegible for megabuffering
         u32 sequenceNumber{InitialSequenceNumber}; //!< Sequence number that is incremented after all modifications to the host side `backing` buffer, used to prevent redundant copies of the buffer being stored in the megabuffer by views
@@ -322,6 +324,13 @@ namespace skyline::gpu {
             return accumulatedCpuLockCounter >= FrequentlyLockedThreshold;
         }
 
+        /*
+         * @note The buffer **must** be locked prior to calling this
+         */
+        bool IsCurrentExecutionGpuDirty() {
+            return currentExecutionGpuDirty;
+        }
+
         /**
          * @brief Waits on a fence cycle if it exists till it's signalled and resets it after
          * @note The buffer **must** be locked prior to calling this
@@ -421,6 +430,11 @@ namespace skyline::gpu {
          * @note The buffer **must** be kept locked until the span is no longer in use
          */
         span<u8> GetReadOnlyBackingSpan(bool isFirstUsage, const std::function<void()> &flushHostCallback);
+
+        /**
+         * @brief Populates the input src and dst stage masks with appropriate read barrier parameters for the current buffer state
+         */
+        void PopulateReadBarrier(vk::PipelineStageFlagBits dstStage, vk::PipelineStageFlags &srcStageMask, vk::PipelineStageFlags &dstStageMask);
     };
 
     /**
