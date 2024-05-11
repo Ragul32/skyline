@@ -5,8 +5,8 @@
     <a href="https://discord.gg/XnbXNQM" target="_blank">
         <img src="https://img.shields.io/discord/545842171459272705.svg?label=&logo=discord&logoColor=ffffff&color=5865F2&labelColor=404EED">
     </a>
-    <a href="https://github.com/skyline-emu/skyline/actions/workflows/ci.yml" target="_blank">
-        <img src="https://github.com/skyline-emu/skyline/actions/workflows/ci.yml/badge.svg"><br>
+    <a href="https://github.com/Ragul32/skyline/actions/workflows/ci.yml" target="_blank">
+        <img src="https://github.com/Ragul32/skyline/actions/workflows/ci.yml/badge.svg"><br>
     </a>
 </h1>
 
