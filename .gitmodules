@@ -33,7 +33,7 @@
 	url = https://github.com/xiph/opus
 [submodule "Boost"]
 	path = app/libraries/boost
-	url = https://github.com/skyline-emu/boost.git
+	url = https://github.com/Ragul32/boost.git
 	ignore = all
 [submodule "LLVM"]
 	path = app/libraries/llvm
@@ -44,10 +44,10 @@
 	url = https://github.com/ericniebler/range-v3
 [submodule "Sirit"]
 	path = app/libraries/sirit
-	url = https://github.com/yuzu-emu/sirit
+	url = https://github.com/Ragul32/sirit
 [submodule "Shader Compiler"]
 	path = app/libraries/shader-compiler
-	url = https://github.com/skyline-emu/shader-compiler.git
+	url = https://github.com/Ragul32/shader-compiler.git
 [submodule "libadrenotools"]
 	path = app/libraries/adrenotools
 	url = https://github.com/bylaws/libadrenotools/
@@ -62,4 +62,4 @@
 	url = https://github.com/skyline-emu/cubeb
 [submodule "app/libraries/audio-core"]
 	path = app/libraries/audio-core
-	url = https://github.com/skyline-emu/audio-core
+	url = https://github.com/Ragul32/audio-core
